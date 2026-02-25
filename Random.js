@@ -4,21 +4,28 @@ import Constants from './Constants';
 const windowHeight = Dimensions.get('window').height;
 const windowWidth = Dimensions.get('window').width;
 
-export const getRandomPipe = (addToPosX = 0) => {
-    // Tính toán độ cao ngẫu nhiên cho ống trên
-    // yTop sẽ nằm trong khoảng từ -500 đến -100 (tuỳ chỉnh theo màn hình)
+// Thêm tham số gap vào hàm (mặc định lấy từ Constants nếu không truyền vào)
+export const getRandomPipe = (addToPosX, gap = Constants.GAP_SIZE) => {
+    
+    // Logic random độ cao của ống trên (giữ nguyên)
     let yTop = -Math.random() * 300 - 100;
 
     // Tạo ống trên
     const pipeTop = {
         position: { x: windowWidth + addToPosX, y: yTop },
         size: { width: Constants.PIPE_WIDTH, height: windowHeight },
-        renderer: 'PipeTop' // Đánh dấu để vẽ
+        renderer: 'PipeTop' 
     };
 
-    // Tạo ống dưới (dựa theo ống trên + khoảng cách GAP)
+    // Tạo ống dưới
     const pipeBottom = {
-        position: { x: windowWidth + addToPosX, y: windowHeight + yTop + Constants.GAP_SIZE },
+        position: { 
+            x: windowWidth + addToPosX, 
+            // --- SỬA LẠI DÒNG NÀY ---
+            // Thay Constants.GAP_SIZE bằng biến gap được truyền vào
+            y: windowHeight + yTop + gap 
+            // ------------------------
+        },
         size: { width: Constants.PIPE_WIDTH, height: windowHeight },
         renderer: 'PipeBottom'
     };

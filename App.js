@@ -16,6 +16,7 @@ export default function App() {
     const [isGameOver, setIsGameOver] = useState(false);
     const [score, setScore] = useState(0);
     const [sound, setSound] = useState();
+    const [notification, setNotification] = useState("");
 
     // Hàm thiết lập thế giới game
    const setupWorld = () => {
@@ -37,7 +38,7 @@ export default function App() {
         Matter.World.add(world, [bird, floor]);
 
         return {
-            physics: { engine: engine, world: world },
+            physics: { engine: engine, world: world, score: 0 },
             Bird: { body: bird, size: [50, 50], renderer: Bird },
             Floor: { 
                 body: floor, 
@@ -108,27 +109,35 @@ export default function App() {
         configureAudio();
     }, []);
 
-    const onEvent = (e) => {
+   const onEvent = (e) => {
         switch (e.type) {
             case "game_over":
                 setRunning(false);
                 setIsGameOver(true);
+                setNotification(""); 
                 playSound('game_over');
                 break;
             case "score":
                 setScore(currentScore => currentScore + 1);
                 playSound('score');
                 break;
-            case "jump": 
+            case "jump":
                 playSound('jump');
+                break;
+            case "level_up":
+                setNotification("Level Up !"); 
+                setTimeout(() => {
+                    setNotification("");
+                }, 2000);
                 break;
         }
     }
 
-    const resetGame = () => {
+   const resetGame = () => {
         if (gameEngine) {
             gameEngine.swap(setupWorld());
             setScore(0);
+            setNotification(""); 
             setRunning(true);
             setIsGameOver(false);
         }
@@ -153,6 +162,12 @@ export default function App() {
                 </GameEngine>
 
                 <Text style={styles.scoreText}>{score}</Text>
+
+                {notification !== "" && (
+                    <Text style={styles.notificationText}>
+                        {notification}
+                    </Text>
+                )}
 
                 {!running && (
                     <View style={styles.fullScreenButton}>
@@ -219,5 +234,16 @@ const styles = StyleSheet.create({
         color: 'white',
         textAlign: 'center',
         marginTop: 10
+    },
+    notificationText: {
+        position: 'absolute',
+        top: 150, 
+        alignSelf: 'center',
+        fontSize: 30,
+        fontWeight: 'bold',
+        color: 'white', 
+        textShadowColor: 'white', 
+        textShadowRadius: 5,
+        zIndex: 20
     }
 });
