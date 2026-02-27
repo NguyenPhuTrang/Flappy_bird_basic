@@ -1,21 +1,20 @@
 import { Audio } from "expo-av";
 import Matter from "matter-js";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-    ImageBackground,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Animated,
+  ImageBackground,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { GameEngine } from "react-native-game-engine";
 
-// --- KIỂM TRA LẠI ĐƯỜNG DẪN IMPORT Ở ĐÂY ---
 import Constants from "./Constants";
 import Physics from "./Physics";
 import Bird from "./src/components/Bird";
-// --------------------------------------------
 
 export default function App() {
   const [running, setRunning] = useState(false);
@@ -24,7 +23,12 @@ export default function App() {
   const [score, setScore] = useState(0);
   const [sound, setSound] = useState();
   const [notification, setNotification] = useState("");
+
+  // Các state quản lý mạng sống và hiệu ứng
   const [lives, setLives] = useState(1);
+  const [displayLives, setDisplayLives] = useState(1);
+  const [isBlinking, setIsBlinking] = useState(false);
+  const blinkAnim = useRef(new Animated.Value(1)).current;
 
   // Hàm thiết lập thế giới game
   const setupWorld = () => {
@@ -88,6 +92,7 @@ export default function App() {
         case "score":
           soundFile = require("./assets/sound/Point.mp3");
           break;
+        // Có thể thêm case jump, game_over... nếu bạn có file âm thanh
         default:
           return;
       }
@@ -132,7 +137,42 @@ export default function App() {
         setIsGameOver(true);
         setNotification("");
         playSound("game_over");
+
+        // --- MỚI: Xử lý nhấp nháy trái tim cuối cùng khi Game Over ---
+        setIsBlinking(true);
+        Animated.sequence([
+          Animated.timing(blinkAnim, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(blinkAnim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(blinkAnim, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(blinkAnim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(blinkAnim, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          setIsBlinking(false);
+          setDisplayLives(0); // Nhấp nháy xong mới thực sự ẩn
+          blinkAnim.setValue(1);
+        });
         break;
+
       case "score":
         setScore((currentScore) => currentScore + 1);
         playSound("score");
@@ -146,13 +186,46 @@ export default function App() {
           setNotification("");
         }, 2000);
         break;
+
       case "add_life":
         setLives((current) => current + 1);
-        // playSound('powerup'); // Bạn có thể thêm âm thanh ăn tim
+        setDisplayLives((current) => current + 1);
         break;
+
       case "lost_life":
-        setLives((current) => current - 1);
-        // playSound('crash'); // Âm thanh vỡ khiên/mất mạng
+        setIsBlinking(true);
+        // --- MỚI: Tăng duration lên 300 và thêm nhịp chớp tắt lâu hơn ---
+        Animated.sequence([
+          Animated.timing(blinkAnim, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(blinkAnim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(blinkAnim, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(blinkAnim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(blinkAnim, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          setIsBlinking(false);
+          setDisplayLives((current) => current - 1);
+          blinkAnim.setValue(1);
+        });
         break;
     }
   };
@@ -165,6 +238,7 @@ export default function App() {
       setRunning(true);
       setIsGameOver(false);
       setLives(1);
+      setDisplayLives(1);
     }
   };
 
@@ -206,7 +280,8 @@ export default function App() {
         )}
       </ImageBackground>
 
-      {running && (
+      {/* --- MỚI: Đổi `running` thành `displayLives > 0` để lúc chết tim vẫn kịp chớp --- */}
+      {displayLives > 0 && (
         <View
           style={{
             position: "absolute",
@@ -216,20 +291,24 @@ export default function App() {
             flexDirection: "row",
           }}
         >
-          {Array.from({ length: lives }).map((_, i) => (
-            <View
-              key={i}
-              style={{
-                width: 20,
-                height: 20,
-                borderRadius: 10,
-                backgroundColor: "red",
-                marginRight: 5,
-                borderWidth: 1,
-                borderColor: "white",
-              }}
-            />
-          ))}
+          {Array.from({ length: displayLives }).map((_, i) => {
+            const isLastHeart = i === displayLives - 1;
+            const currentOpacity = isBlinking && isLastHeart ? blinkAnim : 1;
+
+            return (
+              <Animated.Image
+                key={i}
+                source={require("./assets/images/heart.png")}
+                style={{
+                  width: 30,
+                  height: 30,
+                  marginRight: 8,
+                  opacity: currentOpacity,
+                }}
+                resizeMode="contain"
+              />
+            );
+          })}
         </View>
       )}
     </View>

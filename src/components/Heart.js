@@ -1,5 +1,3 @@
-// components/Heart.js
-// 1. Thêm Image vào dòng import
 import { Image, View } from "react-native";
 
 const Heart = ({ body, size }) => {
@@ -18,7 +16,6 @@ const Heart = ({ body, size }) => {
         height: height,
       }}
     >
-      {/* 2. Đã bỏ dấu { } thừa bao quanh Image */}
       <Image
         source={require("../../assets/images/heart.png")}
         style={{

@@ -6,6 +6,11 @@ import Pipe from "./src/components/Pipe";
 
 let tick = 0;
 
+// --- THÊM 2 HẰNG SỐ QUẢN LÝ NHẤP NHÁY ỐNG ---
+const PIPE_BLINK_TICKS = 30; // Ống sẽ nhấp nháy trong 30 ticks (khoảng 0.5 giây)
+const FLICKER_INTERVAL = 5; // Tốc độ nhấp nháy (cứ 5 ticks đổi mờ/rõ 1 lần)
+// --------------------------------------------
+
 const Physics = (entities, { touches, time, dispatch }) => {
   let engine = entities.physics.engine;
   let world = engine.world;
@@ -39,6 +44,27 @@ const Physics = (entities, { touches, time, dispatch }) => {
     if (key.indexOf("Pipe") === 0 && entities[key].body) {
       Matter.Body.translate(entities[key].body, { x: -speed, y: 0 });
 
+      // --- LOGIC MỚI: KIỂM TRA ỐNG CÓ ĐANG BỊ ĐÂM TRÚNG KHÔNG ---
+      if (entities[key].blinkingTicks > 0) {
+        entities[key].blinkingTicks -= 1; // Giảm thời gian dần dần
+
+        // Tính toán để ống mờ(0.2) rồi rõ(1) liên tục
+        const flickerState =
+          Math.floor(entities[key].blinkingTicks / FLICKER_INTERVAL) % 2;
+        entities[key].opacity = flickerState === 0 ? 0.2 : 1;
+
+        // Nếu đã nhấp nháy xong -> Xóa bỏ ống đó đi
+        if (entities[key].blinkingTicks <= 0) {
+          Matter.World.remove(world, entities[key].body);
+          delete entities[key];
+          return; // Bỏ qua phần code dưới cho cái ống này
+        }
+      } else {
+        // Ống bình thường chưa bị đâm -> Hiển thị rõ 100%
+        entities[key].opacity = 1;
+      }
+      // ---------------------------------------------------------
+
       // Logic tính điểm
       if (
         key.indexOf("PipeTop") !== -1 &&
@@ -57,8 +83,8 @@ const Physics = (entities, { touches, time, dispatch }) => {
         }
       }
 
-      // Xóa ống khi ra khỏi màn hình
-      if (entities[key].body.position.x < -100) {
+      // Xóa ống khi trôi ra khỏi màn hình bên trái
+      if (entities[key].body && entities[key].body.position.x < -100) {
         Matter.World.remove(world, entities[key].body);
         delete entities[key];
       }
@@ -68,7 +94,7 @@ const Physics = (entities, { touches, time, dispatch }) => {
     if (key.indexOf("Heart") === 0 && entities[key].body) {
       Matter.Body.translate(entities[key].body, { x: -speed, y: 0 });
 
-      // Xóa tim khi ra khỏi màn hình
+      // Xóa tim khi trôi ra khỏi màn hình
       if (entities[key].body.position.x < -100) {
         Matter.World.remove(world, entities[key].body);
         delete entities[key];
@@ -105,23 +131,26 @@ const Physics = (entities, { touches, time, dispatch }) => {
 
     Matter.World.add(world, [pipeTopBody, pipeBottomBody]);
 
-    // Thêm vào entities
+    // Thêm vào entities (Cập nhật thêm opacity và blinkingTicks)
     entities["PipeTop" + Date.now()] = {
       body: pipeTopBody,
       size: [pipeTop.size.width, pipeTop.size.height],
       renderer: Pipe,
       scored: false,
       isTopPipe: true,
+      opacity: 1, // <-- Thuộc tính mới
+      blinkingTicks: 0, // <-- Thuộc tính mới
     };
     entities["PipeBottom" + Date.now()] = {
       body: pipeBottomBody,
       size: [pipeBottom.size.width, pipeBottom.size.height],
       renderer: Pipe,
       isTopPipe: false,
+      opacity: 1, // <-- Thuộc tính mới
+      blinkingTicks: 0, // <-- Thuộc tính mới
     };
 
     // --- LOGIC SINH TRÁI TIM ---
-    // Tỷ lệ xuất hiện: 20% gốc, giảm dần theo level, tối thiểu 5%
     let heartChance = Math.max(0.05, 0.2 - level * 0.02);
 
     if (Math.random() < heartChance) {
@@ -155,52 +184,47 @@ const Physics = (entities, { touches, time, dispatch }) => {
   }
 
   // --- 5. XỬ LÝ VA CHẠM (COLLISION) ---
-  // Sử dụng Matter.Query thay vì Matter.Events.on để tối ưu hiệu năng trong Loop
   if (entities.Bird) {
-    // Lấy tất cả các body khác trong world trừ con chim
     const allBodies = Matter.Composite.allBodies(world);
-
-    // Kiểm tra xem chim có chạm vào cái gì không
     const collisions = Matter.Query.collides(entities.Bird.body, allBodies);
 
     if (collisions.length > 0) {
       collisions.forEach((collision) => {
         const { bodyA, bodyB } = collision;
-        // Tìm xem vật thể kia là cái gì (không phải con chim)
         const otherBody = bodyA.label === "Bird" ? bodyB : bodyA;
 
         // CASE 1: ĂN TRÁI TIM
         if (otherBody.label === "Heart") {
-          // Xóa trái tim vật lý
           Matter.World.remove(world, otherBody);
 
-          // Xóa trái tim khỏi entities (renderer)
           const heartKey = Object.keys(entities).find(
             (key) => entities[key].body === otherBody,
           );
           if (heartKey) delete entities[heartKey];
 
-          // Logic cộng mạng
           entities.physics.lives += 1;
           dispatch({ type: "add_life" });
         }
 
         // CASE 2: ĐÂM VÀO ỐNG (Pipe)
         else if (otherBody.label === "Pipe") {
-          // Chúng ta cần kiểm tra xem ống này đã va chạm chưa để tránh trừ mạng liên tục trong 1s
-          // Tuy nhiên vì sau khi va chạm ta xóa ống luôn nên không cần cờ check
-
           if (entities.physics.lives > 1) {
             // MẤT MẠNG (nhưng chưa chết)
             entities.physics.lives -= 1;
             dispatch({ type: "lost_life" });
 
-            // Xóa cái ống đó đi (Vỡ ống)
-            Matter.World.remove(world, otherBody);
+            // --- THAY ĐỔI: KHÔNG XÓA NGAY NỮA, MÀ BẮT ĐẦU NHẤP NHÁY ---
             const pipeKey = Object.keys(entities).find(
               (key) => entities[key].body === otherBody,
             );
-            if (pipeKey) delete entities[pipeKey];
+
+            if (pipeKey && entities[pipeKey]) {
+              // Đổi nhãn thành HitPipe để con chim không đâm vào ống này lần nữa
+              otherBody.label = "HitPipe";
+              // Đặt thời gian bắt đầu nhấp nháy cho ống này
+              entities[pipeKey].blinkingTicks = PIPE_BLINK_TICKS;
+            }
+            // ---------------------------------------------------------
           } else {
             // HẾT MẠNG -> GAME OVER
             dispatch({ type: "game_over" });
@@ -213,6 +237,18 @@ const Physics = (entities, { touches, time, dispatch }) => {
         }
       });
     }
+  }
+
+  if (entities.Bird && entities.Bird.body) {
+    Matter.Body.setPosition(entities.Bird.body, {
+      x: Constants.MAX_WIDTH / 4,
+      y: entities.Bird.body.position.y,
+    });
+    Matter.Body.setVelocity(entities.Bird.body, {
+      x: 0,
+      y: entities.Bird.body.velocity.y,
+    });
+    Matter.Body.setAngularVelocity(entities.Bird.body, 0);
   }
 
   return entities;
